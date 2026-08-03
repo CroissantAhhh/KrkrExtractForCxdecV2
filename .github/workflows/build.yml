@@ -16,7 +16,18 @@ jobs:
 
       - name: Add MSBuild to PATH
         uses: microsoft/setup-msbuild@v2
-
+      - name: Disable AVX2
+        shell: powershell
+        run: |
+          Get-ChildItem -Recurse -Filter *.vcxproj | ForEach-Object {
+            $path = $_.FullName
+            $text = Get-Content $path -Raw
+            $text = $text.Replace(
+              '<EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>',
+              '<EnableEnhancedInstructionSet>NoExtensions</EnableEnhancedInstructionSet>'
+            )
+            Set-Content -Path $path -Value $text -Encoding UTF8
+          }
       - name: Build Release x86
         shell: cmd
         run: >
