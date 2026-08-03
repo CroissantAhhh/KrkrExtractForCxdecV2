@@ -82,8 +82,6 @@ namespace Engine
         this->mTVPExporterInitialized = false;
         this->mExtractor = new ExtractCore();
 
-        //设置解包输出路径
-        this->mExtractor->SetOutputDirectory(this->mCurrentDirectoryPath);
     }
 
     Application::~Application()
@@ -97,9 +95,11 @@ namespace Engine
 
     void Application::InitializeModule(HMODULE hModule)
     {
-        this->mModuleDirectoryPath = Path::GetDirectoryName(Util::GetModulePathW(hModule));
-
-        //设置解包Log输出路径
+        this->mModuleDirectoryPath =
+            Path::GetDirectoryName(Util::GetModulePathW(hModule));
+    
+        // Write both extracted resources and logs beside the extractor DLL.
+        this->mExtractor->SetOutputDirectory(this->mModuleDirectoryPath);
         this->mExtractor->SetLoggerDirectory(this->mModuleDirectoryPath);
     }
 
