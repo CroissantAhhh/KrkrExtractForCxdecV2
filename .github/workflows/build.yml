@@ -1,0 +1,70 @@
+name: Build Windows binaries
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: windows-2022
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build Release x86
+        shell: cmd
+        run: >
+          msbuild KrkrZCxdecV2.sln
+          /m
+          /t:Build
+          /p:Configuration=Release
+          /p:Platform=x86
+
+      - name: Collect binaries
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force -Path artifact
+
+          $requiredFiles = @(
+            "CxdecExtractorLoader.exe",
+            "CxdecExtractor.dll",
+            "CxdecExtractorUI.dll",
+            "CxdecStringDumper.dll"
+          )
+
+          foreach ($name in $requiredFiles) {
+            $matches = Get-ChildItem `
+              -Path . `
+              -Recurse `
+              -File `
+              -Filter $name |
+              Where-Object {
+                $_.FullName -notmatch '\\artifact\\'
+              }
+
+            if (-not $matches) {
+              throw "Required build output not found: $name"
+            }
+
+            $source = $matches |
+              Sort-Object LastWriteTime -Descending |
+              Select-Object -First 1
+
+            Write-Host "Copying $($source.FullName)"
+            Copy-Item $source.FullName -Destination artifact
+          }
+
+          Get-ChildItem artifact
+
+      - name: Upload compiled binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: KrkrExtractForCxdecV2-Release-x86
+          path: artifact/*
+          if-no-files-found: error
