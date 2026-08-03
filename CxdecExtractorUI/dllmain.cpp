@@ -1,8 +1,10 @@
 ﻿#include <Windows.h>
+#include <commdlg.h>
 #include "resource.h"
 
 #include <Shlwapi.h>
 #pragma comment(lib,"shlwapi.lib")
+#pragma comment(lib,"comdlg32.lib")
 
 /// <summary>
 /// 最大路径
@@ -11,6 +13,63 @@ constexpr size_t MaxPath = 1024u;
 
 typedef void (WINAPI* tExtractFunc)(const wchar_t* packageName);
 static tExtractFunc g_ExtractPackage = nullptr;
+
+/// <summary>
+/// Opens a native Windows file picker and extracts the selected XP3 archive.
+/// The extractor core resolves packages relative to the game executable, so
+/// the selected archive must be in the same folder as the running game.
+/// </summary>
+static void BrowseAndExtract(HWND hwnd)
+{
+    if (!g_ExtractPackage)
+    {
+        ::MessageBoxW(hwnd, L"CxdecExtractor.dll is not initialized.", L"Error", MB_OK | MB_ICONERROR);
+        return;
+    }
+
+    wchar_t selectedFile[MaxPath] = { 0 };
+    wchar_t gameExePath[MaxPath] = { 0 };
+    wchar_t gameDirectory[MaxPath] = { 0 };
+
+    if (!::GetModuleFileNameW(nullptr, gameExePath, MaxPath))
+    {
+        ::MessageBoxW(hwnd, L"Unable to determine the game directory.", L"Error", MB_OK | MB_ICONERROR);
+        return;
+    }
+
+    ::lstrcpynW(gameDirectory, gameExePath, MaxPath);
+    ::PathRemoveFileSpecW(gameDirectory);
+
+    OPENFILENAMEW dialog = { 0 };
+    dialog.lStructSize = sizeof(dialog);
+    dialog.hwndOwner = hwnd;
+    dialog.lpstrFilter = L"XP3 archives (*.xp3)\0*.xp3\0All files (*.*)\0*.*\0\0";
+    dialog.lpstrFile = selectedFile;
+    dialog.nMaxFile = MaxPath;
+    dialog.lpstrInitialDir = gameDirectory;
+    dialog.lpstrTitle = L"Select an XP3 archive from the game folder";
+    dialog.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_HIDEREADONLY;
+
+    if (!::GetOpenFileNameW(&dialog))
+        return;
+
+    wchar_t selectedDirectory[MaxPath] = { 0 };
+    ::lstrcpynW(selectedDirectory, selectedFile, MaxPath);
+    ::PathRemoveFileSpecW(selectedDirectory);
+
+    if (::_wcsicmp(selectedDirectory, gameDirectory) != 0)
+    {
+        ::MessageBoxW(
+            hwnd,
+            L"Select an XP3 archive located in the same folder as the game executable.",
+            L"Wrong folder",
+            MB_OK | MB_ICONWARNING);
+        return;
+    }
+
+    const wchar_t* fileName = ::PathFindFileNameW(selectedFile);
+    g_ExtractPackage(fileName);
+}
 
 /// <summary>
 /// 主窗体消息循环
@@ -39,6 +98,15 @@ INT_PTR CALLBACK ExtractorDialogWindProc(HWND hwnd, UINT msg, WPARAM wParam, LPA
                 ::DragFinish(hDrop);
             }
             return TRUE;
+        }
+        case WM_COMMAND:
+        {
+            if (LOWORD(wParam) == IDC_BrowseXp3 && HIWORD(wParam) == BN_CLICKED)
+            {
+                BrowseAndExtract(hwnd);
+                return TRUE;
+            }
+            break;
         }
         case WM_CLOSE:
         {

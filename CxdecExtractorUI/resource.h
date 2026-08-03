@@ -4,6 +4,7 @@
 //
 #define IDD_MainForm                    101
 #define IDC_FileDrop                    1003
+#define IDC_BrowseXp3                   1004
 
 // Next default values for new objects
 // 
